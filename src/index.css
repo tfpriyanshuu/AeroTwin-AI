@@ -1,0 +1,155 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ivory-50: #fafbf9;
+  --color-ivory-100: #f4f6f1;
+  --color-ivory-200: #e8ede3;
+  --color-ivory-300: #d7e0d0;
+  --color-ivory-400: #b8c7ad;
+
+  --color-graphite-50: #f8faf9;
+  --color-graphite-100: #edf2ee;
+  --color-graphite-200: #dbe4de;
+  --color-graphite-300: #b9cbbe;
+  --color-graphite-400: #8ca695;
+  --color-graphite-500: #64826f;
+  --color-graphite-600: #486352;
+  --color-graphite-700: #34493d;
+  --color-graphite-800: #233229;
+  --color-graphite-900: #141d18;
+  --color-graphite-950: #0b110e;
+
+  --color-forest-50: #f0fdf4;
+  --color-forest-100: #dcfce7;
+  --color-forest-500: #22c55e;
+  --color-forest-600: #16a34a;
+  --color-forest-700: #15803d;
+  --color-forest-800: #166534;
+  --color-forest-900: #14532d;
+  --color-forest-950: #052e16;
+
+  --color-olive-50: #f7f8f3;
+  --color-olive-100: #edf0e4;
+  --color-olive-200: #dbe0ca;
+  --color-olive-500: #738a58;
+  --color-olive-600: #5c7244;
+  --color-olive-700: #465734;
+  --color-olive-800: #38462a;
+  --color-olive-900: #2f3b24;
+
+  --color-amber-50: #fffbeb;
+  --color-amber-100: #fef3c7;
+  --color-amber-200: #fde68a;
+  --color-amber-300: #fcd34d;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
+  --color-amber-700: #b45309;
+  --color-amber-800: #92400e;
+  --color-amber-900: #78350f;
+  --color-amber-950: #451a03;
+
+  --color-rust-50: #fff7ed;
+  --color-rust-100: #ffedd5;
+  --color-rust-200: #fed7aa;
+  --color-rust-300: #fdba74;
+  --color-rust-400: #fb923c;
+  --color-rust-500: #f97316;
+  --color-rust-600: #ea580c;
+  --color-rust-700: #c2410c;
+  --color-rust-800: #9a3412;
+  --color-rust-900: #7c2d12;
+
+  --color-earth-50: #fbf9f7;
+  --color-earth-100: #f5f0ec;
+  --color-earth-200: #ebdcd3;
+  --color-earth-500: #a37152;
+  --color-earth-700: #6e452e;
+  --color-earth-800: #523423;
+  --color-earth-900: #3b2519;
+
+  --color-danger-50: #fef2f2;
+  --color-danger-100: #fee2e2;
+  --color-danger-500: #ef4444;
+  --color-danger-600: #dc2626;
+  --color-danger-700: #b91c1c;
+  --color-danger-800: #991b1b;
+  --color-danger-900: #7f1d1d;
+
+  --shadow-subtle: 0 1px 3px 0 rgba(19, 27, 23, 0.05), 0 1px 2px 0 rgba(19, 27, 23, 0.03);
+  --shadow-panel: 0 4px 6px -1px rgba(19, 27, 23, 0.07), 0 2px 4px -1px rgba(19, 27, 23, 0.04);
+  --shadow-elevation: 0 10px 15px -3px rgba(19, 27, 23, 0.08), 0 4px 6px -2px rgba(19, 27, 23, 0.04);
+}
+
+body {
+  background-color: #f4f6f1;
+  color: #1a241f;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #edf1e9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #b9c7b3;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #8fa087;
+}
+
+/* Leaflet Overrides */
+.leaflet-container {
+  font-family: 'Inter', sans-serif !important;
+  background-color: #121a15 !important;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 1;
+}
+
+.leaflet-tile {
+  image-rendering: auto;
+}
+
+.leaflet-popup-content-wrapper {
+  background: #19241e !important;
+  color: #f3f6f1 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid #2e4136 !important;
+  padding: 0 !important;
+}
+
+.leaflet-popup-content {
+  margin: 12px 14px !important;
+  line-height: 1.4 !important;
+}
+
+.leaflet-popup-tip {
+  background: #19241e !important;
+}
+
+.leaflet-control-zoom {
+  border: 1px solid #cbd5cb !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.08) !important;
+  border-radius: 6px !important;
+  overflow: hidden;
+}
+
+.leaflet-control-zoom a {
+  background-color: #fafcf8 !important;
+  color: #2b3a31 !important;
+  border-bottom: 1px solid #e0e7dc !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background-color: #ebf0e6 !important;
+  color: #141f18 !important;
+}
