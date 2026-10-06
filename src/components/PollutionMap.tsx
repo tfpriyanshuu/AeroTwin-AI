@@ -7,7 +7,8 @@ import {
   Popup, 
   Polygon, 
   Polyline, 
-  useMap 
+  useMap,
+  useMapEvents
 } from 'react-leaflet';
 import L from 'leaflet';
 import { 
@@ -18,9 +19,11 @@ import {
   Maximize, 
   Minimize,
   Globe,
-  Layers
+  Layers,
+  MapPin,
+  Sparkles
 } from 'lucide-react';
-import { ActiveMapLayers, FireHotspot, RegionTelemetry, StationData } from '../types';
+import { ActiveMapLayers, FireHotspot, RegionTelemetry, StationData, ActiveLocation } from '../types';
 import { LayerControl } from './LayerControl';
 import { getAqiTheme } from '../utils/aqiUtils';
 
@@ -29,8 +32,10 @@ interface PollutionMapProps {
   stations: StationData[];
   fireHotspots: FireHotspot[];
   selectedRegion: RegionTelemetry | null;
+  currentLocation?: ActiveLocation;
   onSelectRegion: (region: RegionTelemetry) => void;
   onSelectStation?: (station: StationData) => void;
+  onMapClickCoordinates?: (lat: number, lng: number) => void;
 }
 
 type BasemapStyle = 'voyager' | 'satellite' | 'dark' | 'osm';
@@ -43,7 +48,6 @@ const MapViewController: React.FC<{
   const map = useMap();
 
   useEffect(() => {
-    // Invalidate map size so all tiles load immediately even before browser layout settles
     map.invalidateSize();
     const t1 = setTimeout(() => map.invalidateSize(), 150);
     const t2 = setTimeout(() => map.invalidateSize(), 500);
@@ -69,8 +73,20 @@ const MapViewController: React.FC<{
   return null;
 };
 
+// Map Click Inspector Event Listener
+const MapClickHandler: React.FC<{ onMapClick?: (lat: number, lng: number) => void }> = ({ onMapClick }) => {
+  useMapEvents({
+    click(e) {
+      if (onMapClick) {
+        onMapClick(e.latlng.lat, e.latlng.lng);
+      }
+    },
+  });
+  return null;
+};
+
 // Internal Zoom Controls
-const MapZoomController: React.FC<{ onZoomIn: () => void; onZoomOut: () => void }> = () => {
+const MapZoomController: React.FC = () => {
   const map = useMap();
 
   return (
@@ -97,8 +113,11 @@ export const PollutionMap: React.FC<PollutionMapProps> = ({
   regions,
   stations,
   fireHotspots,
+  selectedRegion,
+  currentLocation,
   onSelectRegion,
   onSelectStation,
+  onMapClickCoordinates,
 }) => {
   const [layers, setLayers] = useState<ActiveMapLayers>({
     predictedAqi: true,
@@ -110,11 +129,79 @@ export const PollutionMap: React.FC<PollutionMapProps> = ({
   });
 
   const [overlayOpacity, setOverlayOpacity] = useState<number>(0.75);
-  const [mapCenter, setMapCenter] = useState<[number, number]>([28.6139, 77.2090]); // Delhi NCR focus
-  const [mapZoom, setMapZoom] = useState<number>(6);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([
+    currentLocation?.lat ?? 28.6139, 
+    currentLocation?.lng ?? 77.2090
+  ]);
+  const [mapZoom, setMapZoom] = useState<number>(currentLocation ? 9 : 6);
   const [isLayerControlOpen, setIsLayerControlOpen] = useState<boolean>(true);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [basemap, setBasemap] = useState<BasemapStyle>('voyager');
+
+  // Update center when currentLocation or selectedRegion changes
+  useEffect(() => {
+    if (currentLocation) {
+      setMapCenter([currentLocation.lat, currentLocation.lng]);
+      setMapZoom(9);
+    } else if (selectedRegion) {
+      setMapCenter([selectedRegion.lat, selectedRegion.lng]);
+      setMapZoom(8);
+    }
+  }, [currentLocation, selectedRegion]);
+
+  // Custom DivIcon for Active Selected / Searched Location
+  const createActiveLocationIcon = (aqi: number, name: string) => {
+    const theme = getAqiTheme(selectedRegion?.aqiCategory || 'Moderate');
+    return L.divIcon({
+      className: 'custom-active-location-pin',
+      html: `
+        <div style="
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          transform: translate(-50%, -100%);
+        ">
+          <div style="
+            position: absolute;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background-color: ${theme.hex}33;
+            animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+            top: -6px;
+          "></div>
+          <div style="
+            background: linear-gradient(135deg, ${theme.hex}, #111827);
+            color: #ffffff;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 2px solid #ffffff;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+          ">
+            <span style="font-size: 8px;">🟢</span>
+            <span>${name}: AQI ${aqi}</span>
+          </div>
+          <div style="
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 8px solid ${theme.hex};
+          "></div>
+        </div>
+      `,
+      iconSize: [120, 40],
+      iconAnchor: [60, 40],
+    });
+  };
 
   // Custom DivIcon for Ground Stations
   const createStationIcon = (station: StationData) => {
@@ -216,8 +303,13 @@ export const PollutionMap: React.FC<PollutionMapProps> = ({
   ];
 
   const resetView = () => {
-    setMapCenter([28.6139, 77.2090]);
-    setMapZoom(6);
+    if (currentLocation) {
+      setMapCenter([currentLocation.lat, currentLocation.lng]);
+      setMapZoom(9);
+    } else {
+      setMapCenter([28.6139, 77.2090]);
+      setMapZoom(6);
+    }
   };
 
   // Basemap Tile URL Resolver
@@ -256,18 +348,20 @@ export const PollutionMap: React.FC<PollutionMapProps> = ({
       <div className="absolute top-3 left-3 z-30 flex flex-wrap items-center gap-2 max-w-[calc(100%-80px)]">
         <div className="bg-[#141d18]/90 backdrop-blur-md text-ivory-50 px-3 py-1.5 rounded-lg border border-[#25362b] text-xs font-mono flex items-center space-x-2 shadow-panel">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span className="font-semibold">GEOSPATIAL AIRSHED</span>
+          <span className="font-semibold">{currentLocation ? currentLocation.name.toUpperCase() : 'AIRSHED'}</span>
           <span className="text-graphite-400">|</span>
-          <span className="text-graphite-300">Indo-Gangetic Basin</span>
+          <span className="text-graphite-300">
+            {currentLocation ? `${currentLocation.lat.toFixed(2)}°N, ${currentLocation.lng.toFixed(2)}°E` : 'Indo-Gangetic Basin'}
+          </span>
         </div>
 
         <button
           onClick={resetView}
           className="bg-[#141d18]/90 hover:bg-[#1f2d25] text-ivory-100 px-2.5 py-1.5 rounded-lg border border-[#25362b] text-xs shadow-panel transition-colors flex items-center space-x-1.5"
-          title="Reset View to North India"
+          title="Center on active location"
         >
           <RotateCcw className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="font-mono text-[11px] hidden sm:inline">Reset Extent</span>
+          <span className="font-mono text-[11px] hidden sm:inline">Center Focus</span>
         </button>
 
         <button
@@ -334,6 +428,7 @@ export const PollutionMap: React.FC<PollutionMapProps> = ({
         style={{ height: '100%', width: '100%' }}
       >
         <MapViewController center={mapCenter} zoom={mapZoom} />
+        <MapClickHandler onMapClick={onMapClickCoordinates} />
 
         {/* Dynamic Basemap Tile Layer */}
         <TileLayer
@@ -344,14 +439,34 @@ export const PollutionMap: React.FC<PollutionMapProps> = ({
           maxZoom={19}
         />
 
-        {/* Custom Zoom Buttons rendered within MapContext */}
+        {/* Custom Zoom Buttons */}
         <div className="leaflet-top leaflet-right" style={{ marginTop: '50px', marginRight: '12px' }}>
           <div className="leaflet-control">
-            <MapZoomController onZoomIn={() => {}} onZoomOut={() => {}} />
+            <MapZoomController />
           </div>
         </div>
 
-        {/* 1. LAYER: Predicted AQI Heat Surface Contours */}
+        {/* 1. LAYER: Active Searched Location Pin */}
+        {currentLocation && selectedRegion && (
+          <Marker
+            position={[currentLocation.lat, currentLocation.lng]}
+            icon={createActiveLocationIcon(selectedRegion.aqi, currentLocation.name)}
+          >
+            <Popup>
+              <div className="text-xs p-1 font-sans">
+                <div className="font-bold text-sm text-ivory-50">{currentLocation.name}</div>
+                <div className="text-graphite-300 font-mono mt-0.5">
+                  Real-Time AQI: <strong className="text-orange-400">{selectedRegion.aqi} ({selectedRegion.aqiCategory})</strong>
+                </div>
+                <div className="text-graphite-300 font-mono text-[11px]">NO₂: {selectedRegion.no2} µg/m³</div>
+                <div className="text-graphite-300 font-mono text-[11px]">Boundary Layer: {selectedRegion.blh} m</div>
+                <div className="text-[10px] text-emerald-400 font-mono mt-1">Live Open-Meteo & ERA5 Feed</div>
+              </div>
+            </Popup>
+          </Marker>
+        )}
+
+        {/* 2. LAYER: Predicted AQI Heat Surface Contours */}
         {layers.predictedAqi && (
           <>
             {/* Broad Indo-Gangetic Basin Smog Contour */}
@@ -373,7 +488,7 @@ export const PollutionMap: React.FC<PollutionMapProps> = ({
                 <Circle
                   key={`aqi-hotspot-${region.id}`}
                   center={[region.lat, region.lng]}
-                  radius={region.id === 'delhi-ncr' ? 55000 : 42000}
+                  radius={region.id === 'delhi-ncr' ? 45000 : 35000}
                   pathOptions={{
                     color: theme.hex,
                     weight: 2,
@@ -407,7 +522,7 @@ export const PollutionMap: React.FC<PollutionMapProps> = ({
           </>
         )}
 
-        {/* 2. LAYER: TROPOMI NO2 Column Overlay */}
+        {/* 3. LAYER: TROPOMI NO2 Column Overlay */}
         {layers.tropomiNo2 && (
           <>
             {regions.map((reg) => (
@@ -427,7 +542,7 @@ export const PollutionMap: React.FC<PollutionMapProps> = ({
           </>
         )}
 
-        {/* 3. LAYER: TROPOMI HCHO Column Overlay */}
+        {/* 4. LAYER: TROPOMI HCHO Column Overlay */}
         {layers.tropomiHcho && (
           <>
             {regions.map((reg) => (
@@ -447,7 +562,7 @@ export const PollutionMap: React.FC<PollutionMapProps> = ({
           </>
         )}
 
-        {/* 4. LAYER: MODIS Active Fire Hotspots */}
+        {/* 5. LAYER: MODIS Active Fire Hotspots */}
         {layers.modisFire && (
           <>
             {fireHotspots.map((hotspot) => (
@@ -472,7 +587,7 @@ export const PollutionMap: React.FC<PollutionMapProps> = ({
           </>
         )}
 
-        {/* 5. LAYER: Wind Vectors / Advection Plumes */}
+        {/* 6. LAYER: Wind Vectors / Advection Plumes */}
         {layers.windVectors && (
           <>
             {windStreamlines.map((coords, idx) => (
@@ -490,7 +605,7 @@ export const PollutionMap: React.FC<PollutionMapProps> = ({
           </>
         )}
 
-        {/* 6. LAYER: Ground CAAQMS Stations */}
+        {/* 7. LAYER: Ground CAAQMS Stations */}
         {layers.groundStations && (
           <>
             {stations.map((station) => (
@@ -536,7 +651,7 @@ export const PollutionMap: React.FC<PollutionMapProps> = ({
       <div className="absolute bottom-2 right-2 z-20 bg-[#141d18]/90 text-ivory-200 px-3 py-1 rounded-md border border-[#25362b] text-[10px] font-mono shadow-subtle flex items-center space-x-2">
         <span className="text-emerald-400 font-semibold">TROPOMI 5.5×3.5 km</span>
         <span className="text-graphite-500">|</span>
-        <span className="text-graphite-300">WGS84 EPSG:4326</span>
+        <span className="text-graphite-300">Click Map to Inspect</span>
       </div>
 
     </div>

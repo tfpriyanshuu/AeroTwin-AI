@@ -199,3 +199,57 @@ export interface ActiveMapLayers {
   windVectors: boolean;
   groundStations: boolean;
 }
+
+export interface LocationSearchResult {
+  id: string | number;
+  name: string;
+  admin1?: string;
+  country: string;
+  country_code?: string;
+  latitude: number;
+  longitude: number;
+  elevation?: number;
+  timezone?: string;
+  population?: number;
+}
+
+export interface ActiveLocation {
+  name: string;
+  state: string;
+  country: string;
+  lat: number;
+  lng: number;
+  isCustomCoordinates?: boolean;
+}
+
+export interface PollutantBreakdown {
+  pm25: { value: number; unit: string; safeLimit: number; sharePercent: number };
+  pm10: { value: number; unit: string; safeLimit: number; sharePercent: number };
+  no2: { value: number; unit: string; safeLimit: number; sharePercent: number };
+  so2: { value: number; unit: string; safeLimit: number; sharePercent: number };
+  co: { value: number; unit: string; safeLimit: number; sharePercent: number };
+  o3: { value: number; unit: string; safeLimit: number; sharePercent: number };
+  dust: { value: number; unit: string; safeLimit: number; sharePercent: number };
+  aod: { value: number; unit: string; safeLimit: number; sharePercent: number };
+  uvIndex: { value: number; unit: string };
+  dominantPollutant: string;
+  sourceAttribution: {
+    source: string;
+    percentage: number;
+    description: string;
+    color: string;
+  }[];
+}
+
+export interface HourlyForecastPoint {
+  time: string;
+  timestamp: number;
+  usAqi: number;
+  europeanAqi: number;
+  pm25: number;
+  pm10: number;
+  no2: number;
+  temperature: number;
+  windSpeed: number;
+}
+

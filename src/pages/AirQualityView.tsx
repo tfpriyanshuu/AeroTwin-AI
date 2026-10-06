@@ -9,9 +9,10 @@ import {
   ArrowRight, 
   Sliders, 
   Info,
-  Building2
+  Building2,
+  MapPin
 } from 'lucide-react';
-import { RegionTelemetry, StationData, MetricSummary } from '../types';
+import { RegionTelemetry, StationData, MetricSummary, ActiveLocation } from '../types';
 import { getAqiTheme } from '../utils/aqiUtils';
 
 interface AirQualityViewProps {
@@ -19,6 +20,7 @@ interface AirQualityViewProps {
   regions: RegionTelemetry[];
   stations: StationData[];
   onSelectRegion: (r: RegionTelemetry) => void;
+  currentLocation?: ActiveLocation;
 }
 
 export const AirQualityView: React.FC<AirQualityViewProps> = ({
@@ -26,6 +28,7 @@ export const AirQualityView: React.FC<AirQualityViewProps> = ({
   regions,
   stations,
   onSelectRegion,
+  currentLocation = { name: 'Delhi', state: 'Delhi NCT', country: 'India', lat: 28.65, lng: 77.23 }
 }) => {
   return (
     <div className="space-y-6">
@@ -38,17 +41,17 @@ export const AirQualityView: React.FC<AirQualityViewProps> = ({
               <Wind className="w-4 h-4" />
             </div>
             <h1 className="text-xl font-bold text-graphite-950 font-sans">
-              Air Quality & Trace Gas Chemistry
+              Air Quality & Trace Gas Chemistry ({currentLocation.name})
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-graphite-600 mt-1 max-w-3xl">
-            Detailed tropospheric column versus ground-level concentration modeling across Indian airsheds.
+            Detailed tropospheric column versus ground-level concentration modeling across Indian airsheds and real-time retrieval for <strong className="text-graphite-900">{currentLocation.name}</strong>.
           </p>
         </div>
         <div className="flex items-center space-x-2 font-mono text-xs text-graphite-500 bg-[#f4f7f2] p-2.5 rounded-lg border border-[#d4decb]">
           <span>Sentinel-5P L2 DOAS</span>
           <span className="text-graphite-300">|</span>
-          <span className="text-emerald-700 font-semibold">Calibrated</span>
+          <span className="text-emerald-700 font-semibold">Live Calibrated</span>
         </div>
       </div>
 
@@ -56,18 +59,29 @@ export const AirQualityView: React.FC<AirQualityViewProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {regions.map((reg) => {
           const theme = getAqiTheme(reg.aqiCategory);
+          const isActive = reg.name.toLowerCase().includes(currentLocation.name.toLowerCase());
+
           return (
             <div
               key={reg.id}
               onClick={() => onSelectRegion(reg)}
-              className="bg-white border border-[#dce3d8] rounded-xl p-4.5 shadow-subtle hover:shadow-panel hover:border-forest-600 cursor-pointer transition-all flex flex-col justify-between"
+              className={`bg-white border rounded-xl p-4.5 shadow-subtle hover:shadow-panel hover:border-forest-600 cursor-pointer transition-all flex flex-col justify-between ${
+                isActive ? 'border-2 border-emerald-600 shadow-panel ring-2 ring-emerald-500/20' : 'border-[#dce3d8]'
+              }`}
             >
               <div>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-mono text-graphite-500">{reg.state}</span>
-                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${theme.badge}`}>
-                    {reg.aqiCategory}
-                  </span>
+                  <div className="flex items-center space-x-1">
+                    {isActive && (
+                      <span className="text-[9px] font-mono bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded font-bold">
+                        ACTIVE
+                      </span>
+                    )}
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${theme.badge}`}>
+                      {reg.aqiCategory}
+                    </span>
+                  </div>
                 </div>
                 
                 <h3 className="font-bold text-base text-graphite-950 mt-1">{reg.name}</h3>

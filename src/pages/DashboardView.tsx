@@ -12,7 +12,9 @@ import {
   CloudFog,
   Cpu,
   ChevronDown,
-  RefreshCw
+  RefreshCw,
+  Navigation,
+  Globe2
 } from 'lucide-react';
 import { 
   MetricSummary, 
@@ -26,7 +28,9 @@ import {
   PipelineStageInfo, 
   AtmosphericAlert, 
   DataSourceItem, 
-  TimeWindow 
+  TimeWindow,
+  ActiveLocation,
+  LocationSearchResult
 } from '../types';
 import { MetricCard } from '../components/MetricCard';
 import { PollutionMap } from '../components/PollutionMap';
@@ -39,6 +43,7 @@ import { Pipeline } from '../components/Pipeline';
 import { StationTable } from '../components/StationTable';
 import { AlertPanel } from '../components/AlertPanel';
 import { DataSources } from '../components/DataSources';
+import { POPULAR_LOCATIONS } from '../services/realtimeAqiService';
 
 interface DashboardViewProps {
   metrics: MetricSummary;
@@ -58,6 +63,10 @@ interface DashboardViewProps {
   setTimeWindow: (w: TimeWindow) => void;
   selectedRegion: RegionTelemetry | null;
   setSelectedRegion: (reg: RegionTelemetry | null) => void;
+  currentLocation: ActiveLocation;
+  onSelectLocation: (loc: LocationSearchResult) => void;
+  onMapClickCoordinates?: (lat: number, lng: number) => void;
+  lastUpdatedTime?: string;
   onNavigateToTab?: (tab: string) => void;
 }
 
@@ -79,30 +88,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   setTimeWindow,
   selectedRegion,
   setSelectedRegion,
+  currentLocation,
+  onSelectLocation,
+  onMapClickCoordinates,
+  lastUpdatedTime,
   onNavigateToTab,
 }) => {
-  const [locationFocus, setLocationFocus] = useState<string>('India');
   const [selectedStation, setSelectedStation] = useState<StationData | null>(null);
-
-  const handleLocationSelect = (loc: string) => {
-    setLocationFocus(loc);
-    if (loc === 'Delhi NCR') {
-      const match = regions.find(r => r.id === 'delhi-ncr');
-      if (match) setSelectedRegion(match);
-    } else if (loc === 'Punjab & Haryana') {
-      const match = regions.find(r => r.id === 'punjab-agri');
-      if (match) setSelectedRegion(match);
-    } else if (loc === 'Mumbai MMR') {
-      const match = regions.find(r => r.id === 'mumbai-mmr');
-      if (match) setSelectedRegion(match);
-    } else {
-      setSelectedRegion(null);
-    }
-  };
 
   const handleStationClick = (st: StationData) => {
     setSelectedStation(st);
-    // Find matching region or synthesise region telemetry
     const matchedRegion = regions.find(r => r.state === st.state || r.name.includes(st.city));
     if (matchedRegion) {
       setSelectedRegion({
@@ -118,56 +113,74 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   return (
     <div className="space-y-6">
       
-      {/* 2. HERO / OVERVIEW SECTION */}
+      {/* 2. HERO / ACTIVE LOCATION INTELLIGENCE BAR */}
       <section className="bg-[#ffffff] border border-[#dce3d8] rounded-xl p-5 shadow-subtle flex flex-col md:flex-row md:items-center justify-between gap-4">
         
         {/* Left Title & Context */}
-        <div className="space-y-1">
-          <div className="flex items-center space-x-2">
-            <h1 className="text-xl sm:text-2xl font-extrabold text-graphite-950 tracking-tight font-sans">
-              India Atmospheric Intelligence
-            </h1>
-            <span className="text-[11px] font-mono bg-forest-100 text-forest-900 border border-forest-300 px-2 py-0.5 rounded-full font-bold">
-              ISRO / SIH 2024
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-800">
+                <MapPin className="w-4 h-4" />
+              </div>
+              <h1 className="text-xl sm:text-2xl font-extrabold text-graphite-950 tracking-tight font-sans">
+                {currentLocation.name} Atmospheric Intelligence
+              </h1>
+            </div>
+            
+            <span className="text-[11px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-800 px-2.5 py-0.5 rounded-full font-bold flex items-center space-x-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+              <span>REAL-TIME LIVE</span>
             </span>
+
+            {currentLocation.state && (
+              <span className="text-[11px] font-mono bg-[#f4f7f2] text-graphite-700 border border-[#d4decb] px-2 py-0.5 rounded-full">
+                {currentLocation.state}, {currentLocation.country}
+              </span>
+            )}
           </div>
 
           <p className="text-xs sm:text-sm text-graphite-600 max-w-2xl leading-relaxed">
-            Satellite-driven monitoring and AI-assisted prediction of surface-level air pollution.
+            Real-time multi-spectral satellite retrievals (Sentinel-5P DOAS) coupled with ERA5 boundary layer physics and CPCB ground stations for <strong className="text-graphite-900">{currentLocation.name}</strong>.
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-1 text-xs font-mono text-graphite-500">
             <div className="flex items-center space-x-1.5">
-              <Calendar className="w-3.5 h-3.5 text-forest-700" />
-              <span>Data period: <strong className="text-graphite-900">October 2024</strong></span>
+              <Globe2 className="w-3.5 h-3.5 text-forest-700" />
+              <span>Coordinates: <strong className="text-graphite-900">{currentLocation.lat.toFixed(3)}°N, {currentLocation.lng.toFixed(3)}°E</strong></span>
             </div>
             <span className="text-graphite-300">|</span>
             <div className="flex items-center space-x-1 text-emerald-700 font-semibold">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span>● Data Pipeline Operational</span>
+              <span>● Last Synchronized: <strong>{lastUpdatedTime || 'Just now'}</strong></span>
             </div>
           </div>
         </div>
 
-        {/* Right Location Selector & Quick Stats */}
-        <div className="flex items-center space-x-3 shrink-0 self-start md:self-auto">
-          <div className="flex items-center space-x-2 bg-[#f4f7f2] px-3 py-2 rounded-lg border border-[#d4decb]">
-            <MapPin className="w-4 h-4 text-forest-800 shrink-0" />
-            <select
-              value={locationFocus}
-              onChange={(e) => handleLocationSelect(e.target.value)}
-              aria-label="Filter Airshed Location"
-              className="bg-transparent text-xs font-mono font-bold text-graphite-900 focus:outline-none cursor-pointer pr-1"
-            >
-              <option value="India">All India Airshed</option>
-              <option value="Delhi NCR">Delhi NCR Corridor</option>
-              <option value="Punjab & Haryana">Punjab & Haryana Agri-Zone</option>
-              <option value="Indo-Gangetic Plain">Indo-Gangetic Basin</option>
-              <option value="Mumbai MMR">Mumbai MMR Coastal</option>
-            </select>
+        {/* Right Location Selector & Quick Chips */}
+        <div className="flex flex-col items-start md:items-end space-y-2 shrink-0">
+          <div className="text-[10px] font-mono text-graphite-500 uppercase tracking-wider">
+            Quick Airshed Switcher:
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {POPULAR_LOCATIONS.slice(0, 5).map((city) => {
+              const isSelected = 
+                Math.abs(city.latitude - currentLocation.lat) < 0.05 && 
+                Math.abs(city.longitude - currentLocation.lng) < 0.05;
+
+              return (
+                <button
+                  key={city.id}
+                  onClick={() => onSelectLocation(city)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-mono font-medium transition-all ${
+                    isSelected
+                      ? 'bg-forest-900 text-emerald-300 border border-forest-700 font-bold shadow-sm'
+                      : 'bg-[#f4f7f2] hover:bg-[#e9efe6] text-graphite-700 border border-[#d4decb]'
+                  }`}
+                >
+                  {city.name}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -182,14 +195,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           value={metrics.surfaceAqi.value}
           statusBadge={{
             text: metrics.surfaceAqi.status,
-            variant: 'poor',
+            variant: metrics.surfaceAqi.value <= 100 ? 'good' : metrics.surfaceAqi.value <= 200 ? 'moderate' : metrics.surfaceAqi.value <= 300 ? 'poor' : 'severe',
           }}
           changePercent={metrics.surfaceAqi.change24h}
           sparklineData={metrics.surfaceAqi.sparkline}
           sparklineColor="#ea580c"
           icon={Activity}
-          tooltipText="Composite surface Air Quality Index estimated by combining satellite tropospheric columns with ground calibrations."
-          scientificContext="CPCB Standard Calculation • 24h Weighted Sub-index"
+          tooltipText={`Real-time Air Quality Index in ${currentLocation.name} estimated by combining satellite tropospheric columns with ground calibrations.`}
+          scientificContext="Live Open-Meteo & CPCB Collocated Scale • 24h Weighted"
         />
 
         {/* 2. Surface NO₂ */}
@@ -198,8 +211,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           value={metrics.surfaceNo2.value}
           unit={metrics.surfaceNo2.unit}
           statusBadge={{
-            text: 'Elevated Level',
-            variant: 'poor',
+            text: metrics.surfaceNo2.value > 40 ? 'Elevated NO₂' : 'Acceptable Level',
+            variant: metrics.surfaceNo2.value > 40 ? 'poor' : 'good',
           }}
           changePercent={metrics.surfaceNo2.change24h}
           sparklineData={metrics.surfaceNo2.sparkline}
@@ -228,18 +241,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* 4. Fire Activity */}
         <MetricCard
-          title="Fire Activity"
+          title="Fire & Particulate"
           value={`${metrics.fireActivity.count.toLocaleString('en-IN')}`}
-          unit="detections"
+          unit="anomalies"
           statusBadge={{
-            text: 'Severe Agri Burn',
-            variant: 'severe',
+            text: metrics.fireActivity.count > 300 ? 'Severe Biomass Burn' : 'Moderate Activity',
+            variant: metrics.fireActivity.count > 300 ? 'severe' : 'moderate',
           }}
           changePercent={metrics.fireActivity.change24h}
           sparklineData={metrics.fireActivity.sparkline}
           sparklineColor="#dc2626"
           icon={Flame}
-          tooltipText="Active thermal anomaly detections and Fire Radiative Power (FRP) across Punjab, Haryana, and Western UP from MODIS & VIIRS."
+          tooltipText="Active thermal anomaly detections and Fire Radiative Power (FRP) across surrounding regional corridors."
           scientificContext="NASA FIRMS NRT • 1km Thermal Band Anomaly"
         />
 
@@ -250,7 +263,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           unit={metrics.boundaryLayerHeight.unit}
           statusBadge={{
             text: metrics.boundaryLayerHeight.status,
-            variant: 'inversion',
+            variant: metrics.boundaryLayerHeight.value < 800 ? 'inversion' : 'good',
           }}
           changePercent={metrics.boundaryLayerHeight.change24h}
           sparklineData={metrics.boundaryLayerHeight.sparkline}
@@ -269,8 +282,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           stations={stations}
           fireHotspots={fireHotspots}
           selectedRegion={selectedRegion}
+          currentLocation={currentLocation}
           onSelectRegion={(reg) => setSelectedRegion(reg)}
           onSelectStation={handleStationClick}
+          onMapClickCoordinates={onMapClickCoordinates}
         />
 
         {/* Region / Hotspot Detail Slideout */}

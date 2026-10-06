@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { DashboardView } from './pages/DashboardView';
@@ -21,12 +21,17 @@ import {
   PipelineStageInfo, 
   AtmosphericAlert, 
   DataSourceItem, 
-  TimeWindow 
+  TimeWindow,
+  ActiveLocation,
+  LocationSearchResult,
+  PollutantBreakdown,
+  HourlyForecastPoint
 } from './types';
 import { pollutionService } from './services/pollutionService';
 import { weatherService } from './services/weatherService';
 import { fireService } from './services/fireService';
 import { predictionService } from './services/predictionService';
+import { realtimeAqiService } from './services/realtimeAqiService';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<string>('overview');
@@ -35,15 +40,28 @@ export function App() {
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('7D');
   const [selectedRegion, setSelectedRegion] = useState<RegionTelemetry | null>(null);
 
-  // Application Data States (Loaded from Service Layer)
+  // Active Selected Location State (Default: Delhi, India)
+  const [currentLocation, setCurrentLocation] = useState<ActiveLocation>({
+    name: 'Delhi',
+    state: 'NCT of Delhi',
+    country: 'India',
+    lat: 28.65195,
+    lng: 77.23149,
+  });
+  const [isLoadingLocation, setIsLoadingLocation] = useState<boolean>(false);
+  const [lastUpdatedTime, setLastUpdatedTime] = useState<string>('');
+
+  // Application Data States (Live Telemetry & Ingestion)
   const [metrics, setMetrics] = useState<MetricSummary | null>(null);
   const [regions, setRegions] = useState<RegionTelemetry[]>([]);
   const [stations, setStations] = useState<StationData[]>([]);
   const [fireHotspots, setFireHotspots] = useState<FireHotspot[]>([]);
   const [weather, setWeather] = useState<WeatherTelemetry | null>(null);
+  const [pollutantBreakdown, setPollutantBreakdown] = useState<PollutantBreakdown | undefined>(undefined);
   const [trend7D, setTrend7D] = useState<PollutionTimeSeriesPoint[]>([]);
   const [trend30D, setTrend30D] = useState<PollutionTimeSeriesPoint[]>([]);
   const [trendMonthly, setTrendMonthly] = useState<PollutionTimeSeriesPoint[]>([]);
+  const [hourlyForecast, setHourlyForecast] = useState<HourlyForecastPoint[]>([]);
   const [biomassData, setBiomassData] = useState<FireBiomassInfluencePoint[]>([]);
   const [predictionDiagnostics, setPredictionDiagnostics] = useState<PredictionModelDiagnostics | null>(null);
   const [pipelineStages, setPipelineStages] = useState<PipelineStageInfo[]>([]);
@@ -51,78 +69,87 @@ export function App() {
   const [dataSources, setDataSources] = useState<DataSourceItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Initial Data Ingestion
-  useEffect(() => {
-    async function loadInitialData() {
-      setIsLoading(true);
-      try {
-        const [
-          metricRes,
-          regionRes,
-          stationRes,
-          fireRes,
-          weatherRes,
-          t7Res,
-          t30Res,
-          tMonthRes,
-          bioRes,
-          diagRes,
-          pipeRes,
-          alertRes,
-          srcRes,
-        ] = await Promise.all([
-          pollutionService.getMetricSummary(),
-          pollutionService.getRegions(),
-          pollutionService.getStations(),
-          fireService.getActiveFireHotspots(),
-          weatherService.getCurrentWeather(),
-          pollutionService.getPollutionTrend('7D'),
-          pollutionService.getPollutionTrend('30D'),
-          pollutionService.getPollutionTrend('Monthly'),
-          fireService.getBiomassInfluenceSeries(),
-          predictionService.getModelDiagnostics(),
-          predictionService.getPipelineStages(),
-          pollutionService.getAlerts(),
-          pollutionService.getDataSources(),
-        ]);
+  // Core Function to load Live Real-Time Telemetry for a target location
+  const loadLocationData = useCallback(async (loc: ActiveLocation) => {
+    setIsLoadingLocation(true);
+    try {
+      const [bundle, pipeRes, srcRes] = await Promise.all([
+        realtimeAqiService.fetchCompleteTelemetryForLocation(loc),
+        predictionService.getPipelineStages(),
+        pollutionService.getDataSources(),
+      ]);
 
-        setMetrics(metricRes);
-        setRegions(regionRes);
-        setStations(stationRes);
-        setFireHotspots(fireRes);
-        setWeather(weatherRes);
-        setTrend7D(t7Res);
-        setTrend30D(t30Res);
-        setTrendMonthly(tMonthRes);
-        setBiomassData(bioRes);
-        setPredictionDiagnostics(diagRes);
-        setPipelineStages(pipeRes);
-        setAlerts(alertRes);
-        setDataSources(srcRes);
-      } catch (err) {
-        console.error('Error loading AeroTwin telemetry:', err);
-      } finally {
-        setIsLoading(false);
-      }
+      setMetrics(bundle.metrics);
+      setSelectedRegion(bundle.selectedRegion);
+      setRegions(bundle.regions);
+      setWeather(bundle.weather);
+      setPollutantBreakdown(bundle.pollutantBreakdown);
+      setTrend7D(bundle.trend7D);
+      setTrend30D(bundle.trend30D);
+      setTrendMonthly(bundle.trendMonthly);
+      setHourlyForecast(bundle.hourlyForecast);
+      setStations(bundle.stations);
+      setAlerts(bundle.alerts);
+      setPredictionDiagnostics(bundle.predictionDiagnostics);
+      setBiomassData(bundle.biomassData);
+      setFireHotspots(bundle.fireHotspots);
+      setPipelineStages(pipeRes);
+      setDataSources(srcRes);
+      setLastUpdatedTime(bundle.fetchedAt);
+    } catch (err) {
+      console.error('Error fetching real-time location telemetry:', err);
+    } finally {
+      setIsLoadingLocation(false);
+      setIsLoading(false);
     }
-
-    loadInitialData();
   }, []);
 
-  // Trigger Satellite Telemetry Refresh Simulation
+  // Initial Real-time Data Ingestion
+  useEffect(() => {
+    loadLocationData(currentLocation);
+  }, [loadLocationData, currentLocation]);
+
+  // Handler when user searches or clicks a location from the autocomplete dropdown / presets
+  const handleSelectLocation = async (locResult: LocationSearchResult) => {
+    const nextLoc: ActiveLocation = {
+      name: locResult.name,
+      state: locResult.admin1 || locResult.country || '',
+      country: locResult.country || 'India',
+      lat: locResult.latitude,
+      lng: locResult.longitude,
+    };
+    setCurrentLocation(nextLoc);
+    await loadLocationData(nextLoc);
+  };
+
+  // Handler when user clicks anywhere on the Leaflet map to inspect custom coordinates
+  const handleMapClickCoordinates = async (lat: number, lng: number) => {
+    setIsLoadingLocation(true);
+    try {
+      const revGeocoded = await realtimeAqiService.reverseGeocode(lat, lng);
+      const nextLoc: ActiveLocation = {
+        name: revGeocoded.name,
+        state: revGeocoded.admin1 || '',
+        country: revGeocoded.country || '',
+        lat,
+        lng,
+        isCustomCoordinates: true,
+      };
+      setCurrentLocation(nextLoc);
+      await loadLocationData(nextLoc);
+    } catch (err) {
+      console.error('Error reverse geocoding map point:', err);
+      setIsLoadingLocation(false);
+    }
+  };
+
+  // Trigger Real-Time Feed Refresh
   const handleRefreshFeed = async () => {
     setIsRefreshing(true);
     try {
-      const [metricRes, fireRes, weatherRes] = await Promise.all([
-        pollutionService.getMetricSummary(),
-        fireService.getActiveFireHotspots(),
-        weatherService.getCurrentWeather(),
-      ]);
-      setMetrics(metricRes);
-      setFireHotspots(fireRes);
-      setWeather(weatherRes);
+      await loadLocationData(currentLocation);
     } finally {
-      setTimeout(() => setIsRefreshing(false), 600);
+      setTimeout(() => setIsRefreshing(false), 500);
     }
   };
 
@@ -133,10 +160,10 @@ export function App() {
           🛰
         </div>
         <div className="text-sm font-bold tracking-widest uppercase text-emerald-400 mb-1">
-          AeroTwin Intelligence Engine
+          AeroTwin Real-Time Intelligence Engine
         </div>
         <p className="text-xs text-graphite-400 font-sans">
-          Synchronizing Sentinel-5P DOAS swath & ERA5 meteorology...
+          Fetching live Open-Meteo Air Quality, Sentinel-5P DOAS & ERA5 meteorology...
         </p>
       </div>
     );
@@ -145,12 +172,15 @@ export function App() {
   return (
     <div className="min-h-screen flex flex-col bg-[#f4f6f1] text-graphite-900 font-sans">
       
-      {/* Top Navbar */}
+      {/* Top Navbar with Real-Time Location Search */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onRefreshFeed={handleRefreshFeed}
         isRefreshing={isRefreshing}
+        currentLocation={currentLocation}
+        onSelectLocation={handleSelectLocation}
+        isLoadingLocation={isLoadingLocation}
       />
 
       {/* Main Layout Body */}
@@ -185,6 +215,10 @@ export function App() {
               setTimeWindow={setTimeWindow}
               selectedRegion={selectedRegion}
               setSelectedRegion={setSelectedRegion}
+              currentLocation={currentLocation}
+              onSelectLocation={handleSelectLocation}
+              onMapClickCoordinates={handleMapClickCoordinates}
+              lastUpdatedTime={lastUpdatedTime}
               onNavigateToTab={(tab) => setActiveTab(tab)}
             />
           )}
@@ -194,6 +228,7 @@ export function App() {
               metrics={metrics}
               regions={regions}
               stations={stations}
+              currentLocation={currentLocation}
               onSelectRegion={(reg) => {
                 setSelectedRegion(reg);
                 setActiveTab('overview');
@@ -205,6 +240,8 @@ export function App() {
             <SourcesView
               fireHotspots={fireHotspots}
               biomassData={biomassData}
+              pollutantBreakdown={pollutantBreakdown}
+              currentLocation={currentLocation}
             />
           )}
 
@@ -212,11 +249,11 @@ export function App() {
             <div className="space-y-6">
               <WeatherPanel weather={weather} />
               <div className="bg-white p-5 rounded-xl border border-[#dce3d8] shadow-subtle">
-                <h3 className="font-bold text-base text-graphite-900 mb-2">
-                  ERA5 Atmospheric Dispersion Modeling
+                <h3 className="font-bold text-base text-graphite-900 mb-2 font-sans">
+                  ERA5 Atmospheric Dispersion Modeling ({currentLocation.name})
                 </h3>
                 <p className="text-xs text-graphite-600 leading-relaxed">
-                  Planetary Boundary Layer Height (PBLH) combined with horizontal wind vectors governs the volume of air available for dispersing surface emissions. In North India during post-monsoon (October–November), nocturnal radiation cooling leads to intense temperature inversions compressing the boundary layer below 800m, trapping pyrogenic stubble burning aerosols close to the ground.
+                  Planetary Boundary Layer Height (PBLH: {weather.boundaryLayerHeight}m) combined with surface wind speed ({weather.windSpeed} m/s along {weather.windDirection}) governs atmospheric ventilation (Ventilation Coefficient: {weather.ventilationCoefficient} m²/s). During temperature inversions, nocturnal radiation cooling traps surface emissions close to the ground.
                 </p>
               </div>
             </div>
@@ -226,6 +263,9 @@ export function App() {
             <PredictionView
               diagnostics={predictionDiagnostics}
               pipelineStages={pipelineStages}
+              hourlyForecast={hourlyForecast}
+              currentLocation={currentLocation}
+              liveAqi={metrics.surfaceAqi.value}
             />
           )}
 

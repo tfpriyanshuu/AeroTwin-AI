@@ -2,10 +2,9 @@ import { AQICategory } from '../types';
 
 export function getAqiCategory(aqi: number): AQICategory {
   if (aqi <= 50) return 'Good';
-  if (aqi <= 100) return 'Satisfactory';
-  if (aqi <= 200) return 'Moderate';
-  if (aqi <= 300) return 'Poor';
-  if (aqi <= 400) return 'Very Poor';
+  if (aqi <= 100) return 'Moderate';
+  if (aqi <= 200) return 'Poor';
+  if (aqi <= 300) return 'Very Poor';
   return 'Severe';
 }
 
@@ -22,15 +21,6 @@ export function getAqiTheme(category: AQICategory) {
         description: 'Minimal health impact; clean ambient air quality.',
       };
     case 'Satisfactory':
-      return {
-        hex: '#65a30d',
-        bgLight: 'bg-lime-50 text-lime-800 border-lime-300',
-        badge: 'bg-lime-100 text-lime-800 border-lime-200',
-        barClass: 'bg-lime-600',
-        textColor: 'text-lime-700',
-        borderColor: 'border-lime-500',
-        description: 'Minor breathing discomfort to sensitive people.',
-      };
     case 'Moderate':
       return {
         hex: '#d97706',
@@ -39,7 +29,7 @@ export function getAqiTheme(category: AQICategory) {
         barClass: 'bg-amber-500',
         textColor: 'text-amber-700',
         borderColor: 'border-amber-500',
-        description: 'Breathing discomfort to people with lung/heart disease.',
+        description: 'Moderate air quality; acceptable for most healthy individuals.',
       };
     case 'Poor':
       return {
